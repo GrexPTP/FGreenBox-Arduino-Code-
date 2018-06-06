@@ -13,18 +13,19 @@
 //A1 Cb độ ẩm
 //A2 Cb pH
 #include <Wire.h>
-#include <Adafruit_ADS1015.h>
 #include <DS1302.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h>
 #include <FirebaseArduino.h>
+#include <SoftwareSerial.h>
+
 
 
 #define FIREBASE_HOST "f-green-box.firebaseio.com" // Firebase Address
 #define FIREBASE_AUTH ""   //Authorication
 //Set up wifi name and passwords --> Remember to edit.
-#define ssid  "ArduinoTest"
-#define password  "TestArduino"
+#define ssid  "3e"
+#define password  "56482101"
 
 // Variable to check wifi is connected and possibility to transfer data
 int tempt;
@@ -35,15 +36,13 @@ int tempt;
 bool isWarmClicked, isWaterClicked, isCoolDownClicked, isLedChecked;
 
 
-int led = D8;
-int light = D9;
-int suong = D10;
-int quat = D11;
-int ddtc = D12;
-int nuoc = D13;
-float nhietdo;
-int doam;
-int pH;
+int led = D8;// ro le
+int light = D9; // Done
+int drop = D10;
+int fan = D11;
+int hydroponics = D12;
+int waterFlow = D13;
+
 
 
 //thời gian thực
@@ -52,6 +51,10 @@ int pH;
 
 /*DS1302 rtc(5, 6, 7);
 Time t;*/
+int temper;
+int humidity;
+int pH;
+
 
 void setup(){
   //Set up wifi
@@ -59,6 +62,7 @@ void setup(){
   WiFi.begin(ssid,password);
   //connect firebase
   Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
+  Serial.begin(9600);
 
   
  /* //thời gian thực
@@ -71,28 +75,82 @@ void setup(){
   //setup chân digital
   pinMode(led,OUTPUT);
   pinMode(light,OUTPUT);
-  pinMode(suong,OUTPUT);
-  pinMode(quat,OUTPUT);
-  pinMode(ddtc,OUTPUT);
-  pinMode(nuoc,OUTPUT);
+  pinMode(drop,OUTPUT);
+  pinMode(fan,OUTPUT);
+  pinMode(hydroponics,OUTPUT);
+  pinMode(waterFlow,OUTPUT);
 }
 
 void loop() {
+  // Test Wifi is working
   tempt += 1;
+  // Go to firebase and check. Could be deleted afterwards 
+  Firebase.setInt("temp",tempt);
   
-
-// get user's interaction
-  
+  // Get all analog sensor from arduino
+  if (Serial.available()) {
+    
+     temper = Serial.read();
+     humidity = Serial.read(); 
+     //pH = Serial.read();
+     // Update to server.    
+     Firebase.setString("Temperature",String(temper)); 
+     Firebase.setString("Humidity",String(humidity));
+     Firebase.setString("pH",String(pH));
+   }
+   // get user's interaction  
   isWaterClicked = Firebase.getBool("Water");
   isCoolDownClicked = Firebase.getBool("Cool Down");
   isLedChecked = Firebase.getBool("Led");
   isWarmClicked = Firebase.getBool("Warm");
 
-  // Use this block of code to check wifi and base are working.
-  // Go to firebase and check. Could be deleted afterwards 
-  Firebase.setInt("temp",tempt);
+
+  // Control light  
+  if (temper <= 25 || isWarmClicked){
+      digitalWrite(light, HIGH);
+      delay(3000);  
+     } else {
+       digitalWrite(light,LOW);     
+      delay(3000);
+     }
+     
+  // Control fans and water bumps for cooling 
+  if (temper >= 35 || isCoolDownClicked){
+    digitalWrite(fan,HIGH);
+    digitalWrite(drop,HIGH);
+  }else{
+    digitalWrite(fan,LOW);
+    digitalWrite(drop,LOW);
+  }
   
+  // Control water bumps for humidity.
+  if (humidity > 750 || isWaterClicked){ // Needed scaling to range 0 - 100% to compute and display properly
+    digitalWrite(drop,HIGH);
+  }else{
+    digitalWrite(drop,LOW);
+  }
+
+ 
+  // Control water flows and hydroponics moisture.
+  // More chemicals
+ if (pH > 100 && pH < 424){//Needed scaling to the scale of 8 to compute and display properly
+  digitalWrite(hydroponics,HIGH);
+  delay(1500)
+  digitalWrite(hydroponics,LOW);
+ }
+ // More water
+ if (pH > 475 && pH < 924) {
+  digitalWrite(waterFlow,HIGH);
+  delay(2000);
+  digitalWrite(waterFlow,LOW);
+  }
   
+
+
+
+
+  
+  /*
   //lấy thông số
   nhietdo = analogRead(A0);
   //get temperature
@@ -164,6 +222,13 @@ void loop() {
   
   
   delay(300000);
+  */
+  
+  
+
+
+     
+    
   
   
 }
